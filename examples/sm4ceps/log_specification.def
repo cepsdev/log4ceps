@@ -1,0 +1,57 @@
+/*
+Copyright 2015, Krauss-Maffei-Wegmann GmbH & Co. KG.
+All rights reserved.
+
+Description:
+	General events, states and record format.
+*/
+
+val Km = 1000.0*meter;
+val Hour = 3600.0*second;
+
+kind Systemstate;
+kind Event;
+kind Record;
+
+events{
+ Step{
+  description{"Fired whenever the main loop computes a new set of active states.";};
+ }; 
+};
+
+
+state{
+ id{Current_states;};
+ value{dynamic_bitset{};};
+};
+
+state{
+ id{Current_event;};
+ value{0;};
+};
+
+state{
+ id{Synch_counter;};
+ value{0;};
+};
+
+
+record{
+ id{Statemachine_log_entry;};
+ Synch_counter;
+ Current_event;
+ Current_states;
+};
+
+
+
+test{
+ Record Statemachine_log_entry;
+ logfile{record{Statemachine_log_entry;};path{"test.bin";};size{2048;};};
+ Step;
+ Step;
+ Step;
+ Statemachine_log_entry.print();
+};
+
+

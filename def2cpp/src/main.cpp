@@ -1221,7 +1221,12 @@ void write_kmw4log_states_artifacts(
 			else if (state_value->kind() == ceps::ast::Ast_node_kind::int_literal)
 			{
 				val_unit = ceps::ast::unit(ceps::ast::as_int_ref(state_value));
+			} else {
+				std::stringstream ss;
+				ss << state_value;
+				throw std::runtime_error("Unsupported state value:"+ss.str()+".\n");
 			}
+
 
 			if (val_unit == ceps::ast::all_zero_unit())
 			{
