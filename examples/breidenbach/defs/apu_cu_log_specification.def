@@ -1,0 +1,49 @@
+/*
+Copyright 2015, Krauss-Maffei-Wegmann GmbH & Co. KG.
+All rights reserved.
+
+Description:
+	APU CU specific events and states
+*/ 
+
+
+events{
+  APU_CU_CommunicationChanged{
+ description{"CAN 4: APU CU CommunicationStatus changed.";};
+ };
+ 
+  APU_CU_InternalErrorChanged{
+ description{"APU CU Internal Error State changed.";};
+ };
+
+   APU_CU_SelftestErrorChanged{
+ description{"APU CU Selftest Error State changed.";};
+ };
+ 
+};
+
+state{
+ id{APU_CU_Communication;};
+ value{1 * offline;};
+};
+
+state{
+ id{APU_CU_InternalError;};
+ value{0;}; /* id */
+ value{0;}; /* state */
+ // value{0;}; /* count */
+};
+
+state{
+ id{APU_CU_SelftestError;};
+ value{0;}; /* id */
+ value{0;}; /* state */
+ //value{0;}; /* count */
+};
+
+record{
+ id{rec_apu_cu_status;};
+  APU_CU_Communication;
+  APU_CU_InternalError;
+  APU_CU_SelftestError;
+};

@@ -1,0 +1,76 @@
+/*
+Copyright 2015, Krauss-Maffei-Wegmann GmbH & Co. KG.
+All rights reserved.
+
+Description:
+	General events, states and record format.
+*/
+
+
+events{
+ NullstellungLenkwinkel{
+  description{"Nullstellung Leitwinkel.";};
+ };
+ ResetBetriebsstundenGasfilter{
+  description{"Reset des Betriebsstunden Gasfilters.";};
+ };
+ MonitorAn{
+  description{"Monitor angeschaltet.";};
+ };
+ MonitorAus{
+  description{"Monitor ausgeschaltet.";};
+ }; 
+ BenuzerEingabe{
+  description{"Texteingabe durch Benutzer.";};
+ }; 
+};
+
+
+state{
+ id{CGW_FzGeschwindigkeit;};
+ value{1.0*Km/Hour;};
+};
+
+state{
+ id{CMK_Gesamtkilometer;};
+ value{Km;};
+};
+
+state{
+ id{Monitor_status;};
+ value{0;};//An == 1, Aus == 0
+ value{0.5;}; //Dimmung : 0..1
+ value{"ok";}; //Statuscode
+};
+
+state
+{
+ id{Textfeld;};
+ value{"efgh";};
+};
+
+state{
+ id{an_int;};
+ value{1;};
+};
+
+state{
+ id{a_string;};
+ value{"abc";};
+};
+
+
+
+record{
+ id{status_all;};
+ Monitor_status;
+ Textfeld;
+ CGW_FzGeschwindigkeit;
+ CMK_Gesamtkilometer;
+};
+
+
+record{
+ id{record2;}; 
+ a_string;an_int;
+};

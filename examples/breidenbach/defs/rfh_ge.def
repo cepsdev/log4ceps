@@ -1,0 +1,52 @@
+/*
+Copyright 2015, Krauss-Maffei-Wegmann GmbH & Co. KG.
+All rights reserved.
+
+Description:
+	RFH specific events and states
+*/ 
+
+
+events{
+
+    RFH_Videosignal_Sync_Changed{
+ description{"RFH Videosignal Sync has changed.";};
+ };
+ 
+   RFH_CAN_CommunicationChanged{
+ description{"CAN3: RFH CAN CommunicationStatus changed.";};
+ };
+ 
+    RFH_DoorStatusChanged{
+ description{"RFH DoorStatus changed.";};
+ };
+ 
+};
+
+state{
+ id{RFH_Videosignal;};
+ value{0;};
+};
+
+state{
+ id{RFH_Enable_Relais;};
+ value{0;};
+};
+
+state{
+ id{RFH_CAN_Communication;};
+ value{0;};
+};
+
+state{
+ id{RFH_DoorStatus;};
+ value{0;};
+};
+
+record{
+ id{rec_rfh_status;};
+  RFH_Videosignal;
+  RFH_CAN_Communication;  
+  RFH_Enable_Relais;
+  RFH_DoorStatus;
+};

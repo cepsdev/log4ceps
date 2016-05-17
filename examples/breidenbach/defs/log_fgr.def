@@ -1,0 +1,153 @@
+ 
+/*
+Copyright 2015, Krauss-Maffei-Wegmann GmbH & Co. KG.
+All rights reserved.
+
+Description:
+	fgr specific events, states and record format.
+*/
+
+
+events{
+ 
+ FGR_VT_CANStatus_Changed{
+ description{"FGR Videomatrix CAN Status changed";};
+ };
+ 
+  FGR_VT_InternalError_Changed{
+ description{"FGR Videomatrix meldet internen Fehler";};
+ };
+ 
+ /* ----------------------- */
+ 
+  FGR_PWR_CANStatus_Changed{
+ description{"FGR Powersupply CAN Status changed";};
+ };
+ 
+  FGR_PWR_InternalError_Changed{
+ description{"FGR Powersupply meldet internen Fehler";};
+ };
+ 
+ /* ----------------------- */
+ 
+  FGR_IO_CANStatus_Changed{
+ description{"FGR IO CAN Status changed";};
+ };
+ 
+  FGR_IO_InternalError_Changed{
+ description{"FGR IO meldet internen Fehler";};
+ };
+ 
+ /* ----------------------- */
+ 
+  FGR_PPC_CANStatus_Changed{
+ description{"FGR PPC CAN Status changed";};
+ };
+ 
+  FGR_PPC_InternalError_Changed{
+ description{"FGR PPC meldet internen Fehler";};
+ };
+ 
+ /* ----------------------- */
+ 
+  ZWL_CANStatus_Changed{
+ description{"ZWL Extern CAN Status changed";};
+ };
+ 
+  ZWL_InternalError_Changed{
+ description{"ZWL Extern meldet internen Fehler";};
+ };
+ 
+};
+
+/* ----------------------- */
+
+state{
+id{FGR_VT_CANStatus;};
+value{-1;};
+};
+
+state{
+id{FGR_VT_InternalError;};
+value{-1;}; /* id */
+value{-1;}; /* state */
+};
+
+
+  /* ----------------------- */
+
+state{
+id{FGR_PWR_CANStatus;};
+value{-1;};
+};
+
+state{
+id{FGR_PWR_InternalError;};
+value{-1;}; /* id */
+value{-1;}; /* state */
+};
+
+
+/* ----------------------- */
+
+state{
+id{FGR_IO_CANStatus;};
+value{-1;};
+};
+
+state{
+id{FGR_IO_InternalError;};
+value{-1;}; /* id */
+value{-1;}; /* state */
+};
+
+/* ----------------------- */
+
+state{
+id{FGR_PPC_CANStatus;};
+value{-1;};
+};
+
+state{
+id{FGR_PPC_InternalError;};
+value{-1;}; /* id */
+value{-1;}; /* state */
+};
+
+/* ----------------------- */
+
+state{
+id{ZWL_CANStatus;};
+value{-1;};
+};
+
+state{
+id{ZWL_InternalError;};
+value{-1;}; /* id */
+value{-1;}; /* state */
+};
+
+
+
+
+record{
+ id{rec_fgr;};
+ 
+ FGR_VT_CANStatus;
+ FGR_VT_InternalError;
+ 
+ FGR_PWR_CANStatus;
+ FGR_PWR_InternalError;
+ 
+ FGR_IO_CANStatus;
+ FGR_IO_InternalError;
+ 
+ FGR_PPC_CANStatus;
+ FGR_PPC_InternalError;
+ 
+ ZWL_CANStatus;
+ ZWL_InternalError;
+};
+
+
+

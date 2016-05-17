@@ -1,0 +1,10 @@
+/*
+Copyright 2015, Krauss Maffei Wegmann GmbH & Co. KG.
+All rights reserved.
+
+Description:
+ Basic definitions.
+*/
+
+val Km = 1000*meter;
+val Hour = 3600*second;

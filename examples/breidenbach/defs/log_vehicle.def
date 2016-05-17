@@ -1,0 +1,120 @@
+events{
+ /* HS Changed */
+  Vehicle_HS_Changed{
+ description{"HS Stellung verändert (0 / 1 / 2)";};
+ };
+
+ Vehicle_low_Voltage{
+  description{"Unterspannung Bordnetz Gesamtfahrzeug.";};
+ };
+ Vehicle_high_Voltage{
+  description{"Überspannung Bordnetz Gesamtfahrzeug.";};
+ }; 
+ 
+ Vehicle_Red_Warnings_Changed{
+  description{"Rote Warnmeldung aufgetreten / behoben.";};
+ }; 
+ 
+  Vehicle_Yellow_Warnings_Changed{
+  description{"Gelbe Warnmeldung aufgetreten / behoben.";};
+ }; 
+ 
+   Vehicle_MainEngineRunning_Changed{
+  description{"HTW gestartet / gestoppt.";};
+ }; 
+};
+
+state{
+ id{voltage_n1;};
+ value{0.0;};
+};
+
+state{
+ id{voltage_uc;};
+ value{0.0;};
+};
+
+state{
+ id{vehicle_warningsRed;};
+ value{0;};
+};
+
+state{
+ id{vehicle_warningsYellow;};
+ value{0;};
+};
+
+state{
+ id{vehicle_IO1;};
+ value{0;};
+};
+
+state{
+ id{vehicle_IO2;};
+ value{0;};
+};
+
+state{
+ id{vehicle_Turretposition;};
+ value{0;};
+};
+
+state{
+ id{vehicle_gear;};
+ value{0;};
+};
+
+state{
+ id{vehicle_speed;};
+ value{0 * Km/Hour;};
+};
+
+state{
+ id{vehicle_kilometers;};
+ value{0 * Km;};
+};
+
+state{
+ id{vehicle_fuelLeft;};
+ value{-1;};
+};
+
+state{
+ id{vehicle_fuelRight;};
+ value{-1;};
+};
+
+state{
+ id{vehicle_engineCoolantTemp;};
+ value{-1000;};
+};
+
+ state{
+ id{vehicle_HS;};
+ value{-1;};
+};
+
+ state{
+ id{vehicle_mainengine_rpm;};
+ value{-1;};
+};
+
+
+record{
+ id{rec_vehicle;};
+ vehicle_HS;
+ voltage_n1;
+ voltage_uc;
+ vehicle_warningsRed;
+ vehicle_warningsYellow;
+ vehicle_IO1;
+ vehicle_IO2;
+ vehicle_Turretposition;
+ vehicle_gear;
+ vehicle_speed;
+ vehicle_kilometers;
+ vehicle_fuelLeft;
+ vehicle_fuelRight;
+ vehicle_engineCoolantTemp;
+ vehicle_mainengine_rpm; 
+};

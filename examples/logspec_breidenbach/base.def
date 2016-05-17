@@ -1,0 +1,17 @@
+/*
+Copyright 2015, Krauss Maffei Wegmann GmbH & Co. KG.
+All rights reserved.
+
+Description:
+ Basic definitions.
+*/
+
+val Km = 1000.0*meter;
+val km = Km;
+val Hour = 3600*second;
+val hour = Hour;
+val Cel = kelvin;
+
+val offline = 0;
+val preoperational = 0x7f;
+val operational = 0x05;
