@@ -18,6 +18,7 @@ Description:
 #include <vector>
 #include <cstring>
 #include <stdexcept>
+#include <iostream>
 
 namespace log4kmw {
 
@@ -114,20 +115,12 @@ namespace log4kmw {
 							char * buffer,
 							size_t max_buffer_size,
 							bool write_data,
-							nothrow_exception_policy)
-	{
-		size_t n = 0;
-		n += sizeof(size_t) + v.allocated_memory_size();
-		size_t len = v.size();
-		if (max_buffer_size < n) return 0;
-		if (!write_data) return n;
-
-		*(size_t*)buffer = len;
-		buffer += sizeof(size_t);
-		memcpy(buffer,v.data(),len);
-		return n;
-	}
-
+							nothrow_exception_policy);
+	size_t serialize_value(	const Dynamic_bitset & v,
+							char * buffer,
+							size_t max_buffer_size,
+							bool write_data,
+							throw_exception_policy);
 	/*Deserialization*/
 
 
@@ -183,15 +176,7 @@ namespace log4kmw {
 	/*Specialization for dynamic bitsets*/
 
 
-	size_t deserialize_value(Dynamic_bitset & v, char * buffer, size_t max_buffer_size)
-	{
-		if (sizeof(size_t) > max_buffer_size)
-			throw state_serialization_error("Buffer overflow.");
-		size_t len = *(size_t*)buffer;
-		buffer += sizeof(size_t);
-		memcpy(v.data(),buffer,len);
-		return len + sizeof(size_t);
-	}
+	size_t deserialize_value(Dynamic_bitset & v, char * buffer, size_t max_buffer_size);
 
 }//namespace log4kmw
 

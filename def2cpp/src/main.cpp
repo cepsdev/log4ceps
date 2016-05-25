@@ -22,9 +22,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #include "main.hpp"
+#include <set>
 
 #define VERSION_DEF2CPP_MAJOR "0"
-#define VERSION_DEF2CPP_MINOR "4"
+#define VERSION_DEF2CPP_MINOR "5"
 
 
 map<string,string> data_to_tblname;
@@ -837,7 +838,7 @@ std::string gen_cpp_default_header_for_meta_information(){
 
 
 
-bool is_id_or_symbol(ceps::ast::Nodebase_ptr node, std::string kind, std::string& name){
+bool is_id_or_symbol(ceps::ast::Nodebase_ptr node, std::string& kind, std::string& name){
 	if (node->kind() == ceps::ast::Ast_node_kind::identifier) {
 		name = ceps::ast::name(ceps::ast::as_id_ref(node)); return true;
 	}
@@ -847,7 +848,7 @@ bool is_id_or_symbol(ceps::ast::Nodebase_ptr node, std::string kind, std::string
 		auto& sym = ceps::ast::as_symbol_ref(node);
 		name = ceps::ast::name(sym);
 
-		if (kind.length() == 0) return true;
+		if (kind.length() == 0) {kind = ceps::ast::kind(sym); return true;}
 		return kind == ceps::ast::kind(sym);
 	}
 	return false;
@@ -885,8 +886,9 @@ bool is_state_assignment(Nodebase_ptr node,std::string& state,Nodebase_ptr & rhs
 	if (node->kind() != ceps::ast::Ast_node_kind::binary_operator || ceps::ast::op(ceps::ast::as_binop_ref(node)) != '=')
 		return false;
 	auto& root = ceps::ast::as_binop_ref(node);
+	std::string systemstate_kind = "Systemstate";
 
-	if(!is_id_or_symbol(root.left(), "Systemstate", state)) return false;
+	if(!is_id_or_symbol(root.left(), systemstate_kind, state)) return false;
 
 	rhs=root.right();
 
@@ -972,8 +974,39 @@ std::string gen_cpp_log_event(std::string event,std::string logger){
 	return "log4kmw_loggers::log_event(log4kmw_events::"+event+"(), log4kmw_loggers::"+logger+")";
 }
 
+std::string gen_cpp_func_call(std::string func_name,std::vector<ceps::ast::Nodebase_ptr>& args){
+	std::string r = func_name+"(";
+	for(int i = 0; i != args.size();++i){
+		if (args[i]->kind() == ceps::ast::Ast_node_kind::identifier)
+			r += ceps::ast::name(ceps::ast::as_id_ref(args[i]));
+		if (i+1 < args.size()) r+=",";
+	}
+	r+=")";
+	return r;
+}
 
-bool is_method_call(ceps::ast::Nodebase_ptr node,std::string& lhs_id_or_sym,std::string kind, std::string& func_name,std::vector<ceps::ast::Nodebase_ptr>& args){
+std::string gen_cpp_method_call(std::string lhs_id_or_sym,std::string kind, std::string func_name,std::vector<ceps::ast::Nodebase_ptr>& args){
+	std::string r;
+	if (kind == "Systemstate") r = "log4kmw::get_value<0>("+lhs_id_or_sym+")."+func_name+"("; else r = lhs_id_or_sym+"."+func_name+"(";
+	for(int i = 0; i != args.size();++i){
+		if (args[i]->kind() == ceps::ast::Ast_node_kind::identifier)
+			r += ceps::ast::name(ceps::ast::as_id_ref(args[i]));
+		else if (args[i]->kind() == ceps::ast::Ast_node_kind::int_literal){
+			auto&  v = ceps::ast::as_int_ref(args[i]);
+			if (unit(v) == ceps::ast::all_zero_unit()){
+				r+= std::to_string(value(v));
+			}
+		}
+		if (i+1 < args.size()) r+=",";
+	}
+	r+=")";
+	return r;
+}
+
+
+
+
+bool is_method_call(ceps::ast::Nodebase_ptr node,std::string& lhs_id_or_sym,std::string& kind, std::string& func_name,std::vector<ceps::ast::Nodebase_ptr>& args){
 	if (node->kind() != ceps::ast::Ast_node_kind::binary_operator) return false;
 	auto& bin_op = ceps::ast::as_binop_ref(node);
 	if (ceps::ast::op(bin_op) != '.') return false;
@@ -983,6 +1016,15 @@ bool is_method_call(ceps::ast::Nodebase_ptr node,std::string& lhs_id_or_sym,std:
 							   args)) return false;
 	return true;
 }
+
+bool is_func_call(ceps::ast::Nodebase_ptr node, std::string& func_name,std::vector<ceps::ast::Nodebase_ptr>& args){
+	if (node->kind() != ceps::ast::Ast_node_kind::func_call) return false;
+	if(!read_func_call_values( node,
+							   func_name,
+							   args)) return false;
+	return true;
+}
+
 
 
 
@@ -1126,7 +1168,8 @@ void process_state_declarations(
 		if (value.nodes().empty())
 			throw std::runtime_error("No value found for state.\n");
 		std::string state_id;
-		if (!is_id_or_symbol(id.nodes()[0],"Systemstate",state_id))
+		std::string sysstate_kind = "Systemstate";
+		if (!is_id_or_symbol(id.nodes()[0],sysstate_kind,state_id))
 			throw std::runtime_error("Id for state should be an identifier or symbol of kind systemstate.\n");
 
 		if (kmw4log_state_names.find(state_id) != kmw4log_state_names.end())
@@ -1182,7 +1225,7 @@ void write_kmw4log_states_artifacts(
 
 	kmw4log_states_hpp_file_out << "#ifndef LOG4KMW_STATES_HPP_INC\n";
 	kmw4log_states_hpp_file_out << "#define LOG4KMW_STATES_HPP_INC\n\n";
-	kmw4log_states_hpp_file_out << "#include \"log4kmw_state.hpp\"\n#include<string>\n#include<thread>\n#include<mutex>\n\n";
+	kmw4log_states_hpp_file_out << "#include \"log4kmw_state.hpp\"\n#include \"log4kmw_dynamic_bitset.hpp\"\n#include<string>\n#include<thread>\n#include<mutex>\n\n";
 	kmw4log_states_hpp_file_out << "namespace log4kmw_states{\n";
 	kmw4log_states_hpp_file_out << " extern std::mutex global_lock;\n";
 
@@ -1221,9 +1264,11 @@ void write_kmw4log_states_artifacts(
 			else if (state_value->kind() == ceps::ast::Ast_node_kind::int_literal)
 			{
 				val_unit = ceps::ast::unit(ceps::ast::as_int_ref(state_value));
+			} else if(state_value->kind() == ceps::ast::Ast_node_kind::structdef && ("Dynamic_bitset" == name(as_struct_ref(state_value))) ){
+				base_type = "log4kmw::Dynamic_bitset";
 			} else {
 				std::stringstream ss;
-				ss << state_value;
+				ss << *state_value;
 				throw std::runtime_error("Unsupported state value:"+ss.str()+".\n");
 			}
 
@@ -1276,6 +1321,10 @@ void write_kmw4log_states_artifacts(
 			else if (state_value->kind() == ceps::ast::Ast_node_kind::int_literal)
 			{
 				cpp_initializer << ceps::ast::value(ceps::ast::as_int_ref(state_value));
+			} else if(state_value->kind() == ceps::ast::Ast_node_kind::structdef && "Dynamic_bitset" == name(as_struct_ref(state_value))){
+				Nodeset ns(as_struct_ref(state_value).children());
+				if (ns["size"].size() == 1) cpp_initializer << ns["size"].as_int();
+				else throw std::runtime_error("Dynamic_bitset:Expected a size definition.\n");
 			}
 			if (!last_element) cpp_initializer << ", ";
 
@@ -1323,6 +1372,8 @@ void write_kmw4log_states_artifacts(
 			else if (state_value->kind() == ceps::ast::Ast_node_kind::int_literal)
 			{
 				val_unit = ceps::ast::unit(ceps::ast::as_int_ref(state_value));
+			} else if(state_value->kind() == ceps::ast::Ast_node_kind::structdef && ("Dynamic_bitset" == name(as_struct_ref(state_value))) ){
+				base_type = "log4kmw::Dynamic_bitset";
 			}
 
 			if (val_unit == ceps::ast::all_zero_unit())
@@ -1381,7 +1432,7 @@ void write_kmw4log_states_artifacts(
 	kmw4log_states_hpp_file_out << "}\n\n";
 	kmw4log_states_hpp_file_out << "#endif\n";
 }
-#include <set>
+
 
 void fetch_states(	ceps::ast::Nodeset & cur_rec ,
 		            std::map<std::string,ceps::ast::Nodeset>& record_nodesets,
@@ -1768,6 +1819,7 @@ void process_test(	ceps::Ceps_Environment& ceps_env,
 	std::string id_or_sym;
 	std::string func_name;
 
+    std::string ev_kind = "Event";
 
 	Nodebase_ptr ass_rhs;
 	for(auto node : ns.nodes()){
@@ -1775,10 +1827,14 @@ void process_test(	ceps::Ceps_Environment& ceps_env,
 		if (is_state_assignment(node,state,ass_rhs)){
 			//std::cout << *ass_rhs << std::endl;
 			indent(os) << gen_cpp_state_assignment(state,ass_rhs) << ";\n";
-		} else if (is_id_or_symbol(node,"Event",event)){
+		} else if (is_id_or_symbol(node,ev_kind,event)){
 			indent(os) << gen_cpp_log_event(event,"logger_"+record_id) << ";\n";
 		} else if (is_method_call(node,id_or_sym,rec_kind,func_name,args)){
-			//std::cout << id_or_sym << "."  << func_name << std::endl;
+			std::cout << *node << std::endl;
+			std::cout << id_or_sym <<"/"<<rec_kind << "."  << func_name << std::endl;
+			indent(os) << gen_cpp_method_call(id_or_sym,rec_kind,func_name,args) << ";\n";
+		} else if (is_func_call(node, func_name,args)){
+			indent(os) << gen_cpp_func_call(func_name,args) << ";\n";
 		}
 	}
 }
@@ -1797,7 +1853,7 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 	gen_cpp_block outer_block(&os,false);
 
 	{
-		indent(os) << "enum base_type{Float,Double,Int,String};\n";
+		indent(os) << "enum base_type{Float,Double,Int,String,Dynamicbitset};\n";
 		indent(os) << "using state_name=std::string;using value_types_with_units=std::vector<base_type,int/*ceps::ast::Unit_rep*/>;" << "\n";
 
 		for(auto& rec: all_records){
@@ -1819,9 +1875,11 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 						 if (n->kind() == ceps::ast::Ast_node_kind::int_literal) {u = ceps::ast::unit(ceps::ast::as_int_ref(n)); os << "base_type::Int";}
 						 else if (n->kind() == ceps::ast::Ast_node_kind::float_literal){u = ceps::ast::unit(ceps::ast::as_double_ref(n)); os << "base_type::Double";}
 						 else if (n->kind() == ceps::ast::Ast_node_kind::string_literal) os << "base_type::String";
+						 else if (n->kind() == ceps::ast::Ast_node_kind::structdef && ("Dynamic_bitset" == name(as_struct_ref(n))) ) os << "base_type::Dynamicbitset";
 						 os <<",";
-						 //os << "ceps::ast::Unit_rep(0,0,0,0,0,0,0)";
+						 os << "ceps::ast::Unit_rep(";
 						 os << gen_cpp_unit(u);
+						 os << ")";
 						 os <<")";
 						 if (j+1 < svalues.size()) {os << ",\n";};
 					 }}
@@ -1837,6 +1895,8 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 		indent(os) << "for (auto it = logger.logger().cbegin(); it != logger.logger().cend();++it)\n";
 		{
 		 gen_cpp_block b(&os,true);
+		 //indent(os) << "std::cout << \"!\" << std::endl;\n";
+		 //indent(os) <<  "std::cout << (*it).states() << std::endl;\n";
 		 auto& state_ids = rec.second;
 		 for(size_t i = 0; i != state_ids.size();++i){
 			 //indent(os) << "\"" << state_ids[i]<< "\";\n";
@@ -1906,6 +1966,10 @@ void generate_tests( std::map<std::string, std::tuple<int, std::string, std::vec
 		gen_cpp_block b1(&kmw4log_loggers_test_cpp_out,true);
 		indent(kmw4log_loggers_test_cpp_out) << gen_cpp_init_logger(record_id,gen_cpp_mmapped_file(logfile_path,logfile_size_in_bytes)) << "\n";
 		gen_cpp_block b2(&kmw4log_loggers_test_cpp_out,true);
+		indent(kmw4log_loggers_test_cpp_out) << "using namespace log4kmw_test::meta_info;";
+		indent(kmw4log_loggers_test_cpp_out) << "using namespace log4kmw_loggers;\n";
+		indent(kmw4log_loggers_test_cpp_out) << "using namespace log4kmw_states;\n";
+
 		process_test(ceps_env,universe,cmd_line, test,kmw4log_loggers_test_cpp_out,record_id);
 	}
 

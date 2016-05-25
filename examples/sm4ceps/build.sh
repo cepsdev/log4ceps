@@ -1,0 +1,1 @@
+g++ -std=c++11  src_gen/log4kmw_states.cpp src_gen/log4kmw_loggers.cpp src_gen/log4kmw_records.cpp src_gen/log4kmw_events.cpp src_gen/log4kmw_loggers_tests.cpp ../../src/log4kmw_dynamic_bitset.cpp  ../../src/log4kmw_record.cpp  ../../src/log4kmw_serialization.cpp test_runner.cpp -Isrc_gen/ -I../../include -Wall -I"/home/tprerovs/projects/ceps/core/include" -o test_runner

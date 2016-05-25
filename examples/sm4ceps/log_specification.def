@@ -22,7 +22,7 @@ events{
 
 state{
  id{Current_states;};
- value{dynamic_bitset{};};
+ value{Dynamic_bitset{size{32;};};};
 };
 
 state{
@@ -38,20 +38,25 @@ state{
 
 record{
  id{Statemachine_log_entry;};
- Synch_counter;
+ 
  Current_event;
  Current_states;
+ Synch_counter;
 };
-
-
 
 test{
  Record Statemachine_log_entry;
- logfile{record{Statemachine_log_entry;};path{"test.bin";};size{2048;};};
+ Systemstate Current_states;
+ logfile{record{Statemachine_log_entry;};path{"test.bin";};size{1024;};};
+ Current_states.set(1);
  Step;
+ Current_states.set(2);
  Step;
+ Current_states.set(3); 
  Step;
- Statemachine_log_entry.print();
+ Current_states.reset(3); 
+ Step; 
+ log_print(logger_Statemachine_log_entry);
 };
 
 
