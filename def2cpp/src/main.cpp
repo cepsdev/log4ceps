@@ -1830,8 +1830,8 @@ void process_test(	ceps::Ceps_Environment& ceps_env,
 		} else if (is_id_or_symbol(node,ev_kind,event)){
 			indent(os) << gen_cpp_log_event(event,"logger_"+record_id) << ";\n";
 		} else if (is_method_call(node,id_or_sym,rec_kind,func_name,args)){
-			std::cout << *node << std::endl;
-			std::cout << id_or_sym <<"/"<<rec_kind << "."  << func_name << std::endl;
+			//std::cout << *node << std::endl;
+			//std::cout << id_or_sym <<"/"<<rec_kind << "."  << func_name << std::endl;
 			indent(os) << gen_cpp_method_call(id_or_sym,rec_kind,func_name,args) << ";\n";
 		} else if (is_func_call(node, func_name,args)){
 			indent(os) << gen_cpp_func_call(func_name,args) << ";\n";
@@ -1896,7 +1896,7 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 		{
 		 gen_cpp_block b(&os,true);
 		 //indent(os) << "std::cout << \"!\" << std::endl;\n";
-		 //indent(os) <<  "std::cout << (*it).states() << std::endl;\n";
+		 indent(os) <<  "std::cout << (*it).states() << std::endl;\n";
 		 auto& state_ids = rec.second;
 		 for(size_t i = 0; i != state_ids.size();++i){
 			 //indent(os) << "\"" << state_ids[i]<< "\";\n";
