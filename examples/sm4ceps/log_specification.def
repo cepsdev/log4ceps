@@ -22,7 +22,10 @@ events{
 
 state{
  id{Current_states;};
- value{Dynamic_bitset{size{32;};};};
+ value{
+  Dynamic_bitset{size{32;};};
+  };
+  ceps_representation{file{"state_number_to_id.ceps";};};
 };
 
 state{
@@ -44,6 +47,8 @@ record{
  Synch_counter;
 };
 
+
+
 test{
  Record Statemachine_log_entry;
  Systemstate Current_states;
@@ -57,6 +62,7 @@ test{
  Current_states.reset(3); 
  Step; 
  log_print(logger_Statemachine_log_entry);
+ log_print_ceps(logger_Statemachine_log_entry);
 };
 
 

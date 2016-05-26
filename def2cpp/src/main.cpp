@@ -25,90 +25,85 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <set>
 
 #define VERSION_DEF2CPP_MAJOR "0"
-#define VERSION_DEF2CPP_MINOR "5"
+#define VERSION_DEF2CPP_MINOR "6"
 
 
-map<string,string> data_to_tblname;
-set<string> objects_to_generate_output_for;
-set<string> data_to_generate_xmls_for;
-map<string, string> object_to_id_defining_attribute;
-
-map<string,string> map_xml_object_to_invocation_method;//Methodname of xml-invocation
-map<string, vector<string>> map_xml_object_to_invocation_method_parameters;//Parameters of method
-
-map<string,set<string>> attributes_defining_relations ;
-map<string, bool> transitive_write_only_if_referenced_explicitly;
-
-map<string, int> testcase_ids;
 
 
-map<string, library_descriptor> libraries;
+std::string proc_ceps_func = R"( 
+
+void process_ceps_file(	std::string const & file_name,
+						ceps::Ceps_Environment& ceps_env,
+						ceps::ast::Nodeset& universe )
+{
+ std::fstream ceps_file{file_name};
+ if (!ceps_file) throw std::runtime_error("Couldn't open file:"+file_name);
+ Ceps_parser_driver driver{ceps_env.get_global_symboltable(),ceps_file};
+ ceps::Cepsparser parser{driver};
+ if (parser.parse() != 0 || driver.errors_occured())
+  throw std::runtime_error("Syntax error.");
+ std::vector<ceps::ast::Nodebase_ptr> generated_nodes;
+ ceps::interpreter::evaluate(universe,
+							driver.parsetree().get_root(),
+							ceps_env.get_global_symboltable(),
+							ceps_env.interpreter_env(),
+							&generated_nodes
+							);
+}//process_ceps_file
+
+
+
+)";
 
 ceps::ast::Nodeset*	current_universe;
-
-vector < string > generated_sql_file_names;
-
-struct Precondition_testcase
-{
-	//map<string,vector<ceps::ast::Nodeset>> data;
-	using Cont_type = vector < pair<string, ceps::ast::Nodeset> >;
-	Cont_type data_;
-
-	void push_back(ceps::ast::Nodeset n, string s)
-	{
-		data_.push_back({  s , n});
-	}
-
-	vector<Nodeset> get_all_objects_by_name(string name)
-	{
-		vector<Nodeset> r;
-		for (auto& k : data_) if (k.first == name) r.push_back(k.second);
-		return r;
-	}
-
-	Cont_type::iterator begin()
-	{
-		return data_.begin();
-	}
-
-	Cont_type::iterator end()
-	{
-		return data_.end();
-	}
-
-	Cont_type & data()
-	{
-		return data_;
-	}
-
-	Cont_type const & data() const
-	{
-		return data_;
-	}
-
-
-
-	map<string, set<string>> depends_on;
-	//map<string, set<int>> ignore_during_relation_generation;
-
-	set<size_t> ignore_during_relation_generation_;
-	void ignore_during_relation_generation(size_t i)
-	{
-		ignore_during_relation_generation_.insert(i);
-	}
-	bool to_be_ignored_during_relation_generation(size_t i)
-	{
-		return ignore_during_relation_generation_.find(i) != ignore_during_relation_generation_.end();
-	}
-};
-
 
 ceps::Ceps_Environment * ceps_env_current;
 
 const auto ERR_FILE_OPEN_FAILED = 0;
 const auto ERR_CEPS_PARSER      = 1;
 
+std::set<std::string> kmw4log_event_names;
+std::map<std::string, std::pair<int, std::string> > kmw4log_events;
+int kmw4log_events_counter = 0;
+//Central data structures
+std::set<std::string> kmw4log_state_names;
+using kmw4log_states_t = std::map<std::string, std::tuple<int, std::string, std::vector<ceps::ast::Nodebase_ptr >,ceps::ast::Nodebase_ptr  > >;
+kmw4log_states_t kmw4log_states;
+int kmw4log_state_counter = 0;
+std::map<std::string,std::vector<std::string>> log4kmw_record_contents;
 
+static int indentation = 0;
+
+void print_indentation(ostream& out, int n)
+{
+	for(int i = 0; i < n; ++i)
+		out << " ";
+}
+
+int indent_incr(){
+	return ++indentation;
+}
+
+int indent_decr(){
+	return --indentation;
+}
+
+std::ostream& indent(std::ostream& os) { print_indentation(os,indentation); return os;}
+
+struct gen_cpp_block{
+	int t;
+	bool bracketed = false;
+	std::string lbr="{";
+	std::string rbr = "}";
+	std::ostream* os = nullptr;
+
+	gen_cpp_block():t(indentation){indent_incr();}
+	gen_cpp_block(std::ostream* o,bool b = false,std::string lbr_="{",std::string rbr_="}"):t(indentation),bracketed(b),lbr(lbr_),rbr(rbr_),os(o){
+		if (bracketed && os) { indent(*os) << lbr << "\n";}
+		indent_incr();
+	}
+	~gen_cpp_block(){indentation=t;if (bracketed && os) {  indent(*os) << rbr<<"\n";}}
+};
 
 
 void fatal(int code, std::string const & msg )
@@ -117,12 +112,12 @@ void fatal(int code, std::string const & msg )
 	if (ERR_FILE_OPEN_FAILED == code)
 		ss << "Couldn't open file '" << msg <<"'.";
 	else if (ERR_CEPS_PARSER == code)
-		ss << "A parser exception occured in file '" << msg << "'.";	
+		ss << "A parser exception occured in file '" << msg << "'.";
 	throw runtime_error{ss.str()};
 }
 
 void warn(int code, std::string const & msg)
-{	
+{
 	if (WARN_XML_PROPERTIES_MISSING_PREFIX_DEFINITION == code)
 		cerr << "\n***WARNING. No xml file prefix defined for '"
 		<< msg
@@ -147,38 +142,6 @@ void warn(int code, std::string const & msg)
 		<< "." << endl;
 }
 
-
-bool is_a_library(ceps::ast::Nodebase_ptr root, std::string& lib_name)
-{
-	if (root->kind() != ceps::ast::Ast_node_kind::root) return false;
-	auto pp = ceps::ast::nlf_ptr(root);
-	if (pp->children().empty()) return false;
-	auto p = pp->children()[0];
-	if (p->kind() != ceps::ast::Ast_node_kind::stmts) return false;
-	pp = ceps::ast::nlf_ptr(p);
-	if (pp->children().empty()) return false;
-	p = pp->children()[0];
-	if (p->kind() != ceps::ast::Ast_node_kind::structdef) return false;
-	if (ceps::ast::name(ceps::ast::as_struct_ref(p)) != "LIBRARY") return false;
-	pp = ceps::ast::nlf_ptr(p);
-	if (pp->children().size() != 1) return false;
-	p = pp->children()[0];
-	if (p->kind() != ceps::ast::Ast_node_kind::stmts) return false;
-	if (pp->children().size() != 1) return false;
-	p = pp->children()[0];
-	if (p->kind() != ceps::ast::Ast_node_kind::stmts) return false;
-	pp = ceps::ast::nlf_ptr(p);
-	if (pp->children().size() != 1) return false;
-	p = pp->children()[0];
-	if (p->kind() != ceps::ast::Ast_node_kind::expr) return false;
-	pp = ceps::ast::nlf_ptr(p);
-	if (pp->children().size() != 1) return false;
-	p = pp->children()[0];
-	if (p->kind() != ceps::ast::Ast_node_kind::string_literal) return false;
-
-	lib_name = ceps::ast::value(ceps::ast::as_string_ref(p));
-	return true;
-}
 /*
 Iterates through a vector of file names, evaluates each file with ceps, appends resulting node set to the 'universe'.
 Node set resulting from evaluation is supplemented with internal variables (like paths).
@@ -203,14 +166,7 @@ void process_def_files(	vector<string> const & file_names,
 
 		std::string lib_name;
 
-		bool is_library = is_a_library(driver.parsetree().get_root(), lib_name);
 
-		if (is_library)
-		{
-			libraries[lib_name] = library_descriptor{ driver.parsetree().get_root() };
-			continue;
-		}
-	
 		ceps::interpreter::evaluate(universe,
 									driver.parsetree().get_root(),
 									ceps_env.get_global_symboltable(),
@@ -237,127 +193,7 @@ void process_def_files(	vector<string> const & file_names,
 }//process_def_files
 
 
-/**
-Maps logical attribute name to technical name
-*/
-string normalize_attr_name(string const & attribute_name, string const & container_type,ceps::ast::Nodeset const &  universe)
-{
-	for (auto const & v_ : universe["db2"]["attr_mapping"][container_type][all{ "map" }])
-	{
-		auto const & v = v_["map"];
-		if (attribute_name == v[0].as_str())
-		{
-			return v[1].as_str();
-		}
-	}//for
-	return attribute_name;
-}//normalize_attr_name
 
-bool is_a_reference(Nodeset const & attr, Nodeset& attr_value)
-{
-
-	if (attr.nodes().empty())
-		return false;
-	auto p = attr.nodes()[attr.nodes().size()-1];
-	if(p == nullptr) return false;
-
-	if (p->kind() != Ast_node_kind::structdef || !contains_struct_defs(as_struct_ptr(p))) return false;
-	if ( name(as_struct_ref(p)) != "REF") return false;
-
-	auto pp = contains_exactly_one_struct_def_and_nothing_else(as_struct_ptr(p));
-	if (pp == nullptr) return false;
-
-	string sid = object_to_id_defining_attribute[name(*pp)];
-	attr_value = Nodeset{ pp }[name(*pp)][sid];
-
-    return true;
-}
-
-string escape_sql_string(string const & in)
-{
-	string result;
-	for(int i = 0; i != in.length();++i)
-	{
-		if (in[i] == '\'') result += "''";
-		else result += in[i];
-	}//for
-	return result;
-}//escape_sql_string
-
-void write_sql_table(	std::ofstream & sql_file_out, 
-						ceps::ast::Nodeset const & ns, 
-						string table_name, 
-						string container_type, 
-						ceps::ast::Nodeset const & universe)
-{
-	auto invariant_attribute_is_a_singleton = [&](Nodeset const & attr_value) {
-					return attr_value.nodes().size() == 1 && !has_struct_defs(attr_value); 
-		};
-
-	auto attribute_names = get_attribute_names(ns);
-	vector<string> attribute_names_to_write;
-	vector<Nodeset> attribute_values_to_write;
-	for (auto const & attribute_name : attribute_names)
-	{	
-		if (attribute_name.length() > 2 && attribute_name[attribute_name.size() - 1] == '_' && attribute_name[attribute_name.size() - 2] == '_')
-			continue;
-		if(attributes_defining_relations[container_type].find(attribute_name) != attributes_defining_relations[container_type].end())
-			continue;//skip attributes connected with relations
-		Nodeset attr_value = ns[attribute_name];
-		if (!is_a_reference(ns[attribute_name], attr_value))
-		 if (!invariant_attribute_is_a_singleton(attr_value)) continue;
-		
-		attribute_names_to_write.push_back(normalize_attr_name(attribute_name, container_type, universe));
-		attribute_values_to_write.push_back(attr_value);
-	}//for
-
-	if (attribute_names_to_write.empty()) return;
-	//Invariant: attribute_names_to_write contains the mapped attribute names to be written and attribute_values_to_write contains the
-	//           corresponding values and there is at least one attribute to write.
-
-	
-	sql_file_out << "INSERT INTO " << table_name << "\n(\n";
-
-	for (size_t i = 0; i < attribute_names_to_write.size()-1; ++i)
-		sql_file_out << "\t" << attribute_names_to_write[i] << ",\n";
-	sql_file_out << "\t" << attribute_names_to_write[attribute_names_to_write.size() - 1] << "\n";
-	sql_file_out << ")\n";
-	sql_file_out << "VALUES\n(\n";
-	
-	for (size_t i = 0; i < attribute_values_to_write.size(); ++i)
-	{
-		auto const & attribute_name = attribute_names_to_write[i];
-		Nodeset & attr_value = attribute_values_to_write[i]; //ns[last{attribute_name}];
-
-		if (attr_value.nodes().size() != 1){
-			sql_file_out << "\t" << "null";
-			sql_file_out << "-- " << attribute_name << ": Error occured during generation: multiple values were defined.\n";
-			sql_file_out << (i + 1 < attribute_values_to_write.size() ? ",\n" : "\n");			
-			continue;
-		}
-		auto attr_value_node = attr_value.nodes_[0];
-
-		sql_file_out << "-- " << attribute_name << ": \n";
-		if (attr_value_node->kind() == Ast_node_kind::string_literal)
-			sql_file_out << "\t" <<"'" << escape_sql_string(value(as_string_ref(attr_value.nodes_[0]))) << "'";
-		else if (attr_value_node->kind() == Ast_node_kind::float_literal)
-			sql_file_out  << std::setprecision(12) << "\t" << value(as_double_ref(attr_value.nodes_[0])) ;
-		else if (attr_value_node->kind() == Ast_node_kind::int_literal)
-			sql_file_out << "\t" << value(as_int_ref(attr_value.nodes_[0])) ;
-		else sql_file_out << "\t" << "null";
-		sql_file_out << (i + 1 <attribute_values_to_write.size() ? ",\n" : "\n");
-		
-	}//for
-
-	sql_file_out << ");\n--"<< " End of 'INSERT INTO " << table_name <<"'\n\n\n";
-}//write_sql_table
-
-
-void print_indentation(ostream& out, int n)
-{
-	for(int i = 0; i < n; ++i)
-		out << " ";
-}
 
 string escape_string(string const & s)
 {
@@ -373,427 +209,6 @@ string escape_string(string const & s)
 	}
 	return result;
 }
-
-
-string escape_string_xml(string const & s)
-{
-	string result;
-	for (size_t i = 0; i < s.length(); ++i)
-	{
-		if (s[i] == '<')
-			result += "&lt;";
-		else if (s[i] == '&')
-			result += "&amp;";
-		else
-			result += s[i];
-	}
-	return result;
-}
-
-void xml_write_value(std::ofstream & xml_file_out, Nodebase_ptr p)
-{
-	if (p->kind() == Ast_node_kind::int_literal)
-		xml_file_out << value(as_int_ref(p)) ;
-	else if (p->kind() == Ast_node_kind::string_literal)
-		xml_file_out << escape_string_xml(value(as_string_ref(p)));
-	else if (p->kind() == Ast_node_kind::float_literal)
-		xml_file_out << value(as_double_ref(p)) ;
-	else xml_file_out << "null";
-}//xml_write_value
-
-
-void xml_write_value(std::ostream & out, Nodebase_ptr p)
-{
-	if (p->kind() == Ast_node_kind::int_literal)
-		out << value(as_int_ref(p));
-	else if (p->kind() == Ast_node_kind::string_literal)
-		out << escape_string_xml(value(as_string_ref(p)));
-	else if (p->kind() == Ast_node_kind::float_literal)
-		out << value(as_double_ref(p));
-	else out << "null";
-}//xml_write_value
-
-void xml_write_attr_value(std::ofstream & xml_file_out, Nodebase_ptr p)
-{
-	if (p->kind() == Ast_node_kind::int_literal)
-		xml_file_out << "\"" << value(as_int_ref(p)) << "\"";
-	else if (p->kind() == Ast_node_kind::string_literal)
-		xml_file_out << "\"" << escape_string(value(as_string_ref(p))) << "\"";
-	else if (p->kind() == Ast_node_kind::float_literal)
-		xml_file_out << "\"" << value(as_double_ref(p)) << "\"";
-	else xml_file_out << "\"null\"";
-}//xml_write_attr_value
-
-void xml_write_attr(std::ofstream & xml_file_out,string const & attr_name, Nodebase_ptr p)
-{
-	if (attr_name == "xsi_type")
-		xml_file_out << "xsi:type" << "=";
-	else
-		xml_file_out << attr_name << "=";
-	xml_write_attr_value(xml_file_out,p);
-}//xml_write_attr
-
-
-//map_xml_object_to_invocation_method
-void xml_write(std::ofstream & xml_file_out, ceps::ast::Nodeset const & ns, string const & outer_tag,int indent);
-void xml_write(std::ofstream & xml_file_out, ceps::ast::Nodeset const & ns, string const & obj)
-{
-	
-	std::string method = map_xml_object_to_invocation_method[obj];
-	if (method == "")
-	{
-		std::cerr << "*** Warning: No method invocation defined for '"<<obj<<"'. Please check yor xml/invocation_mapping definitions." << std::endl;
-		return;
-	}
-
-	xml_file_out <<  R"(<common_il:ServiceInvocationCollection xmlns:common_il="http://common.icon.daimler.com/il" xmlns:actor_pl="http://actor.icon.daimler.com/pl" xmlns:calculation_pl="http://calculation.icon.daimler.com/pl" xmlns:contract_il="http://contract.icon.daimler.com/il" xmlns:contract_pl="http://contract.icon.daimler.com/pl" xmlns:contract_sl="http://contract.icon.daimler.com/sl" xmlns:contract_ui="http://contract.icon.daimler.com/ui" xmlns:cost_pl="http://cost.icon.daimler.com/pl" xmlns:cost_sl="http://cost.icon.daimler.com/sl" xmlns:jxb="http://java.sun.com/xml/ns/jaxb" xmlns:logging_pl="http://logging.icon.daimler.com/pl" xmlns:logging_sl="http://logging.icon.daimler.com/sl" xmlns:logging_ui="http://logging.icon.daimler.com/ui" xmlns:masterdata_pl="http://masterdata.icon.daimler.com/pl" xmlns:masterdata_sl="http://masterdata.icon.daimler.com/sl" xmlns:mdsd_sl="http://mdsd.icon.daimler.com/sl" xmlns:partner_pl="http://partner.icon.daimler.com/pl" xmlns:product_pl="http://product.icon.daimler.com/pl" xmlns:product_sl="http://product.icon.daimler.com/sl" xmlns:quotation_sl="http://quotation.icon.daimler.com/sl" xmlns:report_sl="http://report.icon.daimler.com/sl" xmlns:revenue_pl="http://revenue.icon.daimler.com/pl" xmlns:revenue_sl="http://revenue.icon.daimler.com/sl" xmlns:system_pl="http://system.icon.daimler.com/pl" xmlns:system_sl="http://system.icon.daimler.com/sl" xmlns:system_ui="http://system.icon.daimler.com/ui" xmlns:vehicle_pl="http://vehicle.icon.daimler.com/pl" xmlns:vehicle_sl="http://vehicle.icon.daimler.com/sl" xmlns:xjc="http://java.sun.com/xml/ns/jaxb/xjc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">)";
-	xml_file_out << "\n";
-
-	xml_file_out << R"(  <executionSettings xmlns:ns1="http://common.icon.daimler.com/il" )";
-	auto execution_settings_timestamp = ceps_env_current->get_global_symboltable().lookup("execution_settings_timestamp");
-	auto execution_settings_timestamp_payload = execution_settings_timestamp != nullptr ? execution_settings_timestamp->payload : nullptr;
-
-	if (execution_settings_timestamp_payload != nullptr)
-		xml_file_out << "dateTime=\"" << value(as_string_ref((Nodebase_ptr)execution_settings_timestamp_payload)) << "\" ";  //"dateTime=\"2014-08-07T15:41:30.000\"";
-	
-	
-
-	map<string, string> method_invocation_user_header_defaults = {
-			{ "userId", "d0tico10" },
-			{ "tenantId", "51331BE" },
-			{ "causation", "migration" },
-			{ "additionalInformation1", "1" },
-			{ "issueThreshold", "error" } };
-
-	auto const& method_invocation_user_header = ns["invocation_executionSettings__"];
-
-	for (auto p : method_invocation_user_header.nodes())
-	{
-		if (p->kind() != Ast_node_kind::structdef)
-			continue;
-		Struct* pp = contains_exactly_one_child(as_struct_ptr(p));
-		if (pp == nullptr) continue;
-
-		stringstream ss;
-		xml_write_value(ss, pp->children()[0]);
-		method_invocation_user_header_defaults[name(*pp)] = escape_string_xml( ss.str( ));
-	}//for
-
-	for (auto& k : method_invocation_user_header_defaults)
-		xml_file_out << " " <<k.first  << "=\"" << k.second <<"\"" <<" ";
-	xml_file_out << "/>\n";
-	
-	//xml_file_out << R"(userId="d0tico10" tenantId="51331BE" causation="migration" additionalInformation1="1" issueThreshold="error"/>)" << "\n";
-
-	xml_file_out <<"  <invocation xmlns:ns1=\"http://common.icon.daimler.com/il\" operation=\""<< method << "\">\n";
-
-	vector<string>& params = map_xml_object_to_invocation_method_parameters[method];
-	if (params.empty()) xml_write(xml_file_out, ns, "parameter", 4);
-	else
-	{
-		for (auto const & parameter : params)
-		{
-			auto   args = ns[all{ parameter }];
-			if (args.empty())
-				xml_write(xml_file_out, args, "parameter", 4);
-			for (auto const & argument_ : args)
-			{
-				auto const & argument = argument_[parameter];
-				xml_write(xml_file_out, argument, "parameter", 4);
-			}//for
-		}//for
-	}
-	xml_file_out <<"  </invocation>\n";
-	xml_file_out <<"</common_il:ServiceInvocationCollection>\n";
-}
-
-void xml_write(std::ofstream & xml_file_out, ceps::ast::Nodeset const & ns, string const & outer_tag,int indent)
-{
-	if (!has_struct_defs(ns))
-	{
-		if (ns.nodes().empty())
-		{
-			print_indentation(xml_file_out, indent); xml_file_out << "<" << outer_tag << "/>\n";
-			return;
-		}
-		else
-		{
-			for (auto p : ns.nodes())
-			{
-				print_indentation(xml_file_out, indent); xml_file_out << "<" << outer_tag << ">";
-				xml_write_value(xml_file_out, p);
-				xml_file_out << "</" << outer_tag << ">\n";				
-			}//for
-			return;
-		}
-	}
-	bool tag_has_no_children = true;
-	for (auto p : ns.nodes())
-	{
-		//object_to_id_defining_attribute
-		if (p->kind() != Ast_node_kind::structdef)
-			continue;
-		Struct* pp = contains_exactly_one_struct_def_and_nothing_else(as_struct_ptr(p));
-		if (pp != nullptr)	{
-			if (name(*pp) == "REF") continue;
-			else { tag_has_no_children = false; break; }
-		}
-			
-		if (contains_struct_defs(as_struct_ptr(p))) { tag_has_no_children = false; break; }
-	}//for
-
-	print_indentation( xml_file_out,indent);xml_file_out << "<" << outer_tag;
-	
-	for(auto p : ns.nodes())
-	{
-		Struct* pp;
-		if (p->kind() == Ast_node_kind::structdef && !contains_struct_defs(as_struct_ptr(p)) && !as_struct_ptr(p)->empty() )
-		{
-			xml_file_out << " ";
-			xml_write_attr(xml_file_out,name(as_struct_ref(p)), as_struct_ptr(p)->children()[0]);
-		}
-		else if ( (p->kind() == Ast_node_kind::structdef) && (pp = contains_exactly_one_struct_def_and_nothing_else(as_struct_ptr(p))) && name(*pp) == "REF")
-		{
-			xml_file_out << " ";
-			Struct* ppp;
-			if (ppp = contains_exactly_one_struct_def_and_nothing_else(pp))
-			{
-				string sid = object_to_id_defining_attribute[name(*ppp)];
-				Nodeset ns = Nodeset{ ppp }[name(*ppp)][sid];
-
-				if (ns.nodes().size() != 0) 
-					xml_write_attr(xml_file_out, name(as_struct_ref(p)), ns.nodes()[ns.nodes().size()-1]);
-			}
-		}
-	}//for
-	if(tag_has_no_children)
-	{
-		xml_file_out << "/>\n";
-		return;
-	}
-	xml_file_out << ">\n";
-
-	indent += 3;
-
-	for(auto p : ns.nodes())
-	{
-		if (p->kind() == Ast_node_kind::structdef && contains_struct_defs(as_struct_ptr(p)))
-		{
-			auto sname = name(*as_struct_ptr(p));
-			if (sname.length() > 2 && sname[sname.size() - 1] == '_' && sname[sname.size() - 2] == '_')
-					continue;
-			auto pp = contains_exactly_one_struct_def_and_nothing_else(as_struct_ptr(p));
-			if (pp != nullptr && name(*pp) == "REF") continue;
-			xml_write( xml_file_out, ceps::ast::Nodeset{as_struct_ptr(p)->children()}, name(as_struct_ref(p)) ,indent);
-		}
-	}
-
-	indent -= 3;
-
-	print_indentation( xml_file_out,indent);xml_file_out << "</" << outer_tag << ">\n";
-}
-
-
-void traverse_instance_and_update_descr(set<string> parents,Precondition_testcase& descr,vector<Nodebase_ptr> const & nodes,bool ref_read = false)
-{
-	for(Nodebase_ptr p : nodes)
-		{
-			if (!is_struct(p)) continue;
-			Struct& strct =  as_struct_ref(p);
-			bool ref_read_local = false;
-			if (name(strct) == "REF") ref_read_local = true;
-			auto copy_parents = parents;
-			if (objects_to_generate_output_for.find(name(strct)) != objects_to_generate_output_for.end()) copy_parents.insert(name(strct));
-			traverse_instance_and_update_descr(parents,descr, strct.children(), ref_read || ref_read_local);
-			std::string s;
-			if (objects_to_generate_output_for.find(s = name(strct)) == objects_to_generate_output_for.end())
-				continue;
-			bool updated = false;
-			if (!transitive_write_only_if_referenced_explicitly[name(strct)])
-			{
-				descr.push_back(Nodeset{ p }[s],s); updated = true;
-
-			}
-			else if (ref_read)
-			{
-				descr.push_back(Nodeset{ p }[s],s); updated = true;
-			}
-			if (updated)
-			{
-				//descr.depends_on[s] = parents;
-				for (auto p : parents) if(p != s) descr.depends_on[p].insert(s);
-				if (ref_read)
-					descr.ignore_during_relation_generation(descr.data().size()-1);
-			}
-		}//for
-}//traverse_instance_and_update_descr
-
-void read_sys_settings_db(	ceps::Ceps_Environment& ceps_env,
-							ceps::ast::Nodeset& universe)
-{
-	auto tables = universe["db2"]["tables"];
-	for_each_struct_do(
-			tables,
-			[] (Struct & s) -> void
-			{
-				data_to_tblname[name(s)] = Nodeset{&s}[name(s)].as_str();
-			}
-			);
-	for(auto const & k : data_to_tblname)
-		objects_to_generate_output_for.insert(k.first);
-
-	auto attribute_object_mapping = universe["db2"]["attribute_defining_id"];
-
-		for_each_struct_do(
-			attribute_object_mapping,
-			[](Struct & s) -> void
-		{
-			Struct* attr = contains_exactly_one_struct_def_and_nothing_else(&s);
-			if (attr == nullptr) return;
-			object_to_id_defining_attribute[name(s)] = name(*attr);
-		}
-		);
-}//read_sys_settings_db
-
-void read_sys_settings_xml(ceps::Ceps_Environment& ceps_env,
-	ceps::ast::Nodeset& universe)
-{
-	auto tables = universe["xml"]["invocation_mapping"];
-	for_each_struct_do(
-		tables,
-		[](Struct & s) -> void
-	{
-		objects_to_generate_output_for.insert(name(s));
-		transitive_write_only_if_referenced_explicitly[name(s)] = true;
-	}
-	);
-
-	auto attribute_object_mapping = universe["xml"]["attribute_defining_id"];
-	
-	for_each_struct_do(
-		attribute_object_mapping,
-		[](Struct & s) -> void
-	{
-		Struct* attr = contains_exactly_one_struct_def_and_nothing_else(&s);
-		if (attr == nullptr) return;
-		object_to_id_defining_attribute[name(s)] = name(*attr);
-	}
-	);
-
-	//object_to_id_defining_attribute
-	
-}//read_sys_settings_db
-
-void compute_tuples(
-		vector<Nodeset>&, 
-		vector<vector<Nodeset>> & rel_tuples,
-		vector<vector<Nodeset>> const & in_data,
-		vector<vector<string>> const &  keys);
-
-
-
-void dfs(size_t node, map<size_t, set<size_t>>& edges, vector<bool>& visiting, vector<bool>& visited,vector<size_t>& r)
-{
-	visiting[node] = true;
-	for (auto prev : edges[node])
-	{
-		if (visiting[prev])
-			throw std::runtime_error("Dependency cycle detected.");
-		else if (visited[prev])
-			continue;
-		dfs(prev,edges,visiting,visited,r);
-		
-	}
-	r.push_back(node);
-	visited[node] = true;
-	visiting[node] = false;
-}
-
-void compute_topological_sort_internal(Precondition_testcase  & testcase,  vector<size_t>& r)
-{
-	map<size_t, set<size_t>> edges;
-	for (size_t i = 0; i != testcase.data().size(); ++i)
-		edges[i].clear();
-
-	vector<bool> visited;
-	vector<bool> visiting;
-
-
-	for (size_t i = 0; i != testcase.data().size(); ++i)
-	{
-		visited.push_back(false);
-		visiting.push_back(false);
-		if (testcase.depends_on[testcase.data()[i].first].empty()) continue;
-
-		for (auto & s : testcase.depends_on[testcase.data()[i].first])
-			for (size_t j = 0; j != testcase.data().size(); ++j)
-				if (testcase.data()[j].first == s) edges[i].insert(j);
-	}
-	for (;;){
-		bool unvisited_node_found = false;
-		for (size_t i = 0; i != visited.size(); ++i) 
-			if (!visited[i]){ dfs(i,edges, visiting, visited,r); unvisited_node_found = true; }
-		if (!unvisited_node_found) break;
-	}
-}
-
-vector<size_t> compute_topological_sort(Precondition_testcase  & testcase )
-{
-	vector<size_t> r;
-	if (testcase.data().size() > 0)
-	{
-		compute_topological_sort_internal(testcase, r);
-	}
-	return r;
-}
-
-Nodeset get_key_values(Nodeset const & ns ,vector<string> const &  keys)
-{
-	Nodeset result;
-	for (auto const & k : keys)
-	{
-		auto value = ns[k];
-		if (value.nodes_.size() == 0) continue;
-		result.nodes().push_back(value.nodes_[0]);
-	}//for
-	return result;
-}
-
-void compute_tuples(
-		vector<Nodeset> & v , vector<vector<Nodeset>> & rel_tuples,vector<vector<Nodeset>> const & in_data,vector<vector<string>> const &  keys)
-{
-	size_t i = v.size();
-
-	for(size_t j = 0; j < in_data[i].size();++j)
-	{
-		vector<Nodeset> vv{v};
-		vv.push_back(
-				 	 	 get_key_values(in_data[i][j],keys[i])
-		            );
-		if (i+1 < in_data.size())
-			compute_tuples(vv,rel_tuples,in_data,keys);
-		else
-			rel_tuples.push_back(vv);
-	}//for
-}//compute_tuples
-
-void create_global_sql_file()
-{
-	auto global_sqlfile_name = global_out_path + "global.sql";
-	//cout << global_sqlfile_name << endl;
-	ofstream out{ global_sqlfile_name };
-	for (auto const & sql_file_name : generated_sql_file_names)
-	{
-		ifstream in{ sql_file_name };
-		for (; in;)
-		{
-			string buffer;
-			if(!getline(in,buffer)) continue;
-			out << buffer << endl;
-		}
-	}
-}
-
 
 
 
@@ -1026,43 +441,6 @@ bool is_func_call(ceps::ast::Nodebase_ptr node, std::string& func_name,std::vect
 }
 
 
-
-
-
-
-
-std::set<std::string> kmw4log_event_names;
-std::map<std::string, std::pair<int, std::string> > kmw4log_events;
-int kmw4log_events_counter = 0;
-
-void process_event_declarations(
-	ceps::Ceps_Environment& ceps_env,
-	ceps::ast::Nodeset& universe,
-	Result_process_cmd_line& cmd_line)
-{
-	
-	ceps::ast::Nodeset& ns = universe;
-
-	auto events_sections = ns[all{ "events" }];
-	for (auto events_section_ : events_sections)
-	{
-		auto events_section = events_section_["events"];
-		for (Nodebase_ptr p : events_section.nodes())
-		{
-			if (p->kind() != Ast_node_kind::structdef)
-				continue;
-			string strct_name = name(as_struct_ref(p));
-			if (kmw4log_event_names.find(strct_name) != kmw4log_event_names.end())
-				throw std::runtime_error("Redeclaration of event: '" + strct_name + "'");
-			kmw4log_event_names.insert(strct_name);
-			kmw4log_events[strct_name].first = kmw4log_events_counter++;
-			kmw4log_events[strct_name].second = ceps::ast::Nodeset{ p }[strct_name]["description"].as_str();
-
-			if (DEBUG_MODE) std::cout << "kmw4log_event: " << strct_name << "description= \"" << kmw4log_events[strct_name].second << "\"" << std::endl;
-		}//for
-	}//for
-}
-
 std::string gen_cpp_logger_type(std::string id){
 	return "log4kmw::Logger<log4kmw_records::"+id+ "_t, log4kmw::persistence::memory_mapped_file>";
 }
@@ -1073,6 +451,7 @@ std::string gen_cpp_record_type(std::string id){
 
 std::string gen_cpp_loggers_nmspc() {return "log4kmw_loggers::";}
 
+std::string const & gen_cpp_utils() {return proc_ceps_func;}
 
 void write_copyright_and_timestamp(std::ostream& out, std::string title,bool b){
 	if(!b) return;
@@ -1144,11 +523,34 @@ void write_kmw4log_events_artifacts(
 
 
 
-//Central data structures
-std::set<std::string> kmw4log_state_names;
-std::map<std::string, std::tuple<int, std::string, std::vector<ceps::ast::Nodebase_ptr > > > kmw4log_states;
-int kmw4log_state_counter = 0;
-std::map<std::string,std::vector<std::string>> log4kmw_record_contents;
+
+void process_event_declarations(
+	ceps::Ceps_Environment& ceps_env,
+	ceps::ast::Nodeset& universe,
+	Result_process_cmd_line& cmd_line)
+{
+
+	ceps::ast::Nodeset& ns = universe;
+
+	auto events_sections = ns[all{ "events" }];
+	for (auto events_section_ : events_sections)
+	{
+		auto events_section = events_section_["events"];
+		for (Nodebase_ptr p : events_section.nodes())
+		{
+			if (p->kind() != Ast_node_kind::structdef)
+				continue;
+			string strct_name = name(as_struct_ref(p));
+			if (kmw4log_event_names.find(strct_name) != kmw4log_event_names.end())
+				throw std::runtime_error("Redeclaration of event: '" + strct_name + "'");
+			kmw4log_event_names.insert(strct_name);
+			kmw4log_events[strct_name].first = kmw4log_events_counter++;
+			kmw4log_events[strct_name].second = ceps::ast::Nodeset{ p }[strct_name]["description"].as_str();
+
+			if (DEBUG_MODE) std::cout << "kmw4log_event: " << strct_name << "description= \"" << kmw4log_events[strct_name].second << "\"" << std::endl;
+		}//for
+	}//for
+}
 
 void process_state_declarations(
 	ceps::Ceps_Environment& ceps_env,
@@ -1167,6 +569,7 @@ void process_state_declarations(
 		auto const & value = state["value"];		
 		if (value.nodes().empty())
 			throw std::runtime_error("No value found for state.\n");
+		auto const & style_sheet = state["ceps_representation"]["file"];
 		std::string state_id;
 		std::string sysstate_kind = "Systemstate";
 		if (!is_id_or_symbol(id.nodes()[0],sysstate_kind,state_id))
@@ -1176,7 +579,10 @@ void process_state_declarations(
 			throw std::runtime_error("Redefinition of \""+state_id+"\"");
 		kmw4log_state_names.insert(state_id);
 
-		kmw4log_states[state_id] = make_tuple(kmw4log_state_counter++, "", value.nodes());
+		kmw4log_states[state_id] = make_tuple(kmw4log_state_counter++,
+												"",
+												value.nodes(),
+												 style_sheet.nodes().size()?style_sheet.nodes()[0]:nullptr );
 		
 		if (DEBUG_MODE) std::cout << "kmw4log_state: " << state_id /* << "description= \"" << kmw4log_events[strct_name].second << "\"" */ << std::endl;
 
@@ -1593,32 +999,6 @@ void process_record_declarations(std::map<std::string,std::vector<std::string>>&
 
 
 
-static int indentation = 0;
-
-int indent_incr(){
-	return ++indentation;
-}
-
-int indent_decr(){
-	return --indentation;
-}
-
-std::ostream& indent(std::ostream& os) { print_indentation(os,indentation); return os;}
-
-struct gen_cpp_block{
-	int t;
-	bool bracketed = false;
-	std::string lbr="{";
-	std::string rbr = "}";
-	std::ostream* os = nullptr;
-
-	gen_cpp_block():t(indentation){indent_incr();}
-	gen_cpp_block(std::ostream* o,bool b = false,std::string lbr_="{",std::string rbr_="}"):t(indentation),bracketed(b),lbr(lbr_),rbr(rbr_),os(o){
-		if (bracketed && os) { indent(*os) << lbr << "\n";}
-		indent_incr();
-	}
-	~gen_cpp_block(){indentation=t;if (bracketed && os) {  indent(*os) << rbr<<"\n";}}
-};
 
 void generate_logger_files(
 	ceps::Ceps_Environment& ceps_env,
@@ -1841,7 +1221,7 @@ void process_test(	ceps::Ceps_Environment& ceps_env,
 
 
 void gen_cpp_log_printers(std::ostream& os,
-		std::map<std::string, std::tuple<int, std::string, std::vector<ceps::ast::Nodebase_ptr > > >& all_states,
+		kmw4log_states_t& all_states,
 		std::map<std::string,std::vector<std::string>>& all_records,
 	    ceps::Ceps_Environment& ceps_env,
 	    ceps::ast::Nodeset& universe,
@@ -1889,6 +1269,7 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 		}
 	}
 
+	//Create default loggers
 	for(auto& rec: all_records){
 		indent(os) << "void log_print( log4kmw_loggers::logger_" << gen_cpp_record_type(rec.first) << "& logger)";
 		gen_cpp_block b(&os,true);
@@ -1903,12 +1284,51 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 		 }
 		}
 	}
+	//Create ceps loggers
+	for(auto& rec: all_records){
+		indent(os) << "void log_print_ceps( log4kmw_loggers::logger_" << gen_cpp_record_type(rec.first) << "& logger)";
+		gen_cpp_block b(&os,true);
+
+
+
+		for(size_t i = 0; i != rec.second.size();++i){
+			if (nullptr == std::get<3>(all_states[rec.second[i]])) continue;
+			if ( std::get<2>(all_states[rec.second[i]]).size() == 1 &&
+			      (std::get<2>(all_states[rec.second[i]])[0]->kind() == ceps::ast::Ast_node_kind::structdef &&
+			    		 ("Dynamic_bitset" == name(as_struct_ref( std::get<2>(all_states[rec.second[i]])[0] ))) )
+				)
+			{
+				indent(os) << "ceps::Ceps_Environment ceps_env;\nceps::ast::Nodeset universe"<<i<<";\n";
+			}
+			else fatal(-1, "Style sheets not supported for ... .\n" );
+		    //std::cout << *std::get<3>(all_states[rec.second[i]]) << std::endl;
+		}
+
+
+		indent(os) << "for (auto it = logger.logger().cbegin(); it != logger.logger().cend();++it)\n";
+		{
+		 gen_cpp_block b(&os,true);
+		 indent(os) << "std::cout << \"" << rec.first << "{\\n \";\n";
+
+		 auto& state_ids = rec.second;
+		 for(size_t i = 0; i != state_ids.size();++i){
+			 indent(os) << "// Write " << state_ids[i]<< "\n";
+			 indent(os) << "std::cout << \" " << state_ids[i] << "{\\n \";\n";
+
+			 indent(os) << "auto state"<<i <<" = log4kmw::get_value<" << i <<">((*it).states());\n";
+
+			 indent(os) << "std::cout << \" };\\n\";";
+		 }
+		 indent(os) << "std::cout << \"};\\n\";";
+		}
+	}
+
 	os << R"(}}/*End section "Log Printers"*/)" << "\n";
 }
 
 
 
-void generate_tests( std::map<std::string, std::tuple<int, std::string, std::vector<ceps::ast::Nodebase_ptr > > >& all_states,
+void generate_tests( kmw4log_states_t& all_states,
 		std::map<std::string,std::vector<std::string>>& all_records,
 	ceps::Ceps_Environment& ceps_env,
 	ceps::ast::Nodeset& universe,
@@ -1920,22 +1340,18 @@ void generate_tests( std::map<std::string, std::tuple<int, std::string, std::vec
 		return;
 	std::string out_path = cmd_line.out_path;
 	mk_directories(out_path);
-
 	string kmw4log_loggers_test_cpp_out_name{ out_path + "log4kmw_loggers_tests.cpp" };
 	std::ofstream kmw4log_loggers_test_cpp_out{ kmw4log_loggers_test_cpp_out_name };
-
 	if (!kmw4log_loggers_test_cpp_out)
 	 throw std::runtime_error("Cannot create '" + kmw4log_loggers_test_cpp_out_name + "'\n");
 	write_copyright_and_timestamp(kmw4log_loggers_test_cpp_out,"LOG4KMW_LOGGERS_TESTS.CPP",print_header_in_log4kmw_events_files);
 	kmw4log_loggers_test_cpp_out << gen_cpp_default_header_for_logger_client() << "\n";
 	kmw4log_loggers_test_cpp_out << gen_cpp_default_header_for_meta_information() << "\n\n";
 
+	indent(kmw4log_loggers_test_cpp_out) << gen_cpp_utils() << "\n";
 	gen_cpp_log_printers(kmw4log_loggers_test_cpp_out,all_states,all_records,ceps_env,universe,cmd_line);
-
 	std::set<std::string> test_names_seen;
-
 	std::vector<std::string> test_procs;
-
 	int counter = 0;
 	for(auto test_:tests){
 		++counter;
@@ -1969,7 +1385,6 @@ void generate_tests( std::map<std::string, std::tuple<int, std::string, std::vec
 		indent(kmw4log_loggers_test_cpp_out) << "using namespace log4kmw_test::meta_info;";
 		indent(kmw4log_loggers_test_cpp_out) << "using namespace log4kmw_loggers;\n";
 		indent(kmw4log_loggers_test_cpp_out) << "using namespace log4kmw_states;\n";
-
 		process_test(ceps_env,universe,cmd_line, test,kmw4log_loggers_test_cpp_out,record_id);
 	}
 
@@ -2035,7 +1450,6 @@ int main(int argc,char ** argv)
 
 	try{
 		process_def_files(result_cmd_line.definition_file_rel_paths,ceps_env,last_file_processed,universe);
-		//std::cout << universe << std::endl;
 	}
 	catch (ceps::interpreter::semantic_exception & se)
 	{

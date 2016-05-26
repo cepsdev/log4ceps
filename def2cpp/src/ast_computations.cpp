@@ -100,28 +100,7 @@ ceps::ast::Nodeset eval_path_expr(ceps::ast::Nodeset const & pattern,ceps::ast::
 	ceps::ast::Nodeset result;
 	ceps::ast::Nodeset rest_pattern = pattern;
 
-	if (pattern["LIBRARY"].size() > 0)
-	{
-		std::string libname = pattern["LIBRARY"].as_str();
-		auto it = libraries.find(libname);
-		if (it == libraries.end())
-		{
-			//TODOD:warn(WARN_LIBRARY_NOT_FOUND, "'"+libname+ "'");
-			return result;
-		}
 
-
-
-		std::vector<ceps::ast::Nodebase_ptr> generated_nodes;
-		/*
-		ceps::interpreter::evaluate(*current_universe,
-									it->second.parse_tree().get_root(),
-									ceps_env_current->get_global_symboltable(),
-									ceps_env_current->interpreter_env(),
-									&generated_nodes
-									);
-		*/
-	}
 
 	bool first_run = true;
 	while(has_struct_defs(rest_pattern))
