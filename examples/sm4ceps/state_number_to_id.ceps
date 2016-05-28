@@ -1,5 +1,24 @@
 map{
- 0;"abc";
- 1;"def";
- 2;"ghi";
+ 0;"Stilts_to_extend.Initial";
+ 1;"Stilts_to_extend.Final";
+ 2;"Z_drive_move.moving";
+ 3;"Z_drive_move.prepare_talin";
+ 4;"Z_drive_enable.enabling";
+ 5;"Z_drive_reset_fault_antriebprepare_talin";
+ 6;"s6";
+ 7;"s7";
+ 8;"s8";
+ 9;"s9";
+ 10;"s10";
+ 11;"s11";
+ 12;"s12";
+ 13;"s13";
+ 14;"s14";
+ 15;"s15";
+ 16;"s16";
+ 17;"s17";
+ 18;"s18";
+ 19;"s19";
+ 20;"s20";
+ 21;"s21";
 };

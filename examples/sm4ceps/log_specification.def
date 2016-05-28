@@ -61,7 +61,7 @@ test{
  Step;
  Current_states.reset(3); 
  Step; 
- log_print(logger_Statemachine_log_entry);
+ //log_print(logger_Statemachine_log_entry);
  log_print_ceps(logger_Statemachine_log_entry);
 };
 

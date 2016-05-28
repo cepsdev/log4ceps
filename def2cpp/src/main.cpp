@@ -1288,6 +1288,7 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 	for(auto& rec: all_records){
 		indent(os) << "void log_print_ceps( log4kmw_loggers::logger_" << gen_cpp_record_type(rec.first) << "& logger)";
 		gen_cpp_block b(&os,true);
+		indent(os) <<"using namespace ceps::ast;\n";
 
 
 
@@ -1298,7 +1299,28 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 			    		 ("Dynamic_bitset" == name(as_struct_ref( std::get<2>(all_states[rec.second[i]])[0] ))) )
 				)
 			{
-				indent(os) << "ceps::Ceps_Environment ceps_env;\nceps::ast::Nodeset universe"<<i<<";\n";
+				indent(os) << "ceps::Ceps_Environment ceps_env"<<i<<";";
+				indent(os) << "ceps::ast::Nodeset universe"<<i<<";\n";
+				indent(os) << "try{\n";
+				indent(os) << "process_ceps_file("<<*std::get<3>(all_states[rec.second[i]])<<",ceps_env"<<i<<" ,universe"<<i<<");\n";
+				indent(os) << "} catch (std::runtime_error & re){std::cerr << \"*** Error in "
+						   << "void log_print_ceps( log4kmw_loggers::logger_" << gen_cpp_record_type(rec.first) << "& logger)" << ": \" << re.what() << std::endl;return;}\n";
+
+				indent(os) <<"std::map<int,ceps::ast::Nodebase_ptr> m" <<i << ";\n";
+				//indent(os) <<"std::cout << universe"<<i<<";\n";
+				indent(os) <<"auto mm"<<i<<" = universe"<< i <<"[all{\"map\"}];\n";
+				indent(os) <<"if(mm"<<i<<".size() == 0)";
+				indent(os) <<"{std::cerr << \"*** Error in "
+										   << "void log_print_ceps( log4kmw_loggers::logger_" << gen_cpp_record_type(rec.first) << "& logger)" << ": No map definition found.\\n\";return;}\n";
+				indent(os) <<"mm"<<i<<" = universe"<< i <<"[\"map\"];\n";
+				indent(os) <<"{auto& cont = mm"<<i<<".nodes();auto& mp = m"<<i<<";\n";
+				indent(os) <<"for(int i = 0; i != cont.size();++i){\n";
+				indent(os) <<" if (i + 1 == cont.size()) break;\n";
+				indent(os) <<" if (cont[i]->kind() != ceps::ast::Ast_node_kind::int_literal) continue;\n";
+				indent(os) <<" mp[ceps::ast::value(ceps::ast::as_int_ref(cont[i]))] = cont[i+1];\n";
+				indent(os) <<"}}\n";
+
+
 			}
 			else fatal(-1, "Style sheets not supported for ... .\n" );
 		    //std::cout << *std::get<3>(all_states[rec.second[i]]) << std::endl;
@@ -1308,15 +1330,34 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 		indent(os) << "for (auto it = logger.logger().cbegin(); it != logger.logger().cend();++it)\n";
 		{
 		 gen_cpp_block b(&os,true);
-		 indent(os) << "std::cout << \"" << rec.first << "{\\n \";\n";
+		 indent(os) << "std::cout << \"" << rec.first << "{\\n\";\n";
 
 		 auto& state_ids = rec.second;
 		 for(size_t i = 0; i != state_ids.size();++i){
 			 indent(os) << "// Write " << state_ids[i]<< "\n";
-			 indent(os) << "std::cout << \" " << state_ids[i] << "{\\n \";\n";
-
+			 indent(os) << "std::cout << \" " << state_ids[i] << "{ \";\n";
 			 indent(os) << "auto state"<<i <<" = log4kmw::get_value<" << i <<">((*it).states());\n";
 
+			 if ( ( nullptr != std::get<3>(all_states[rec.second[i]]))
+					&&
+			     ( std::get<2>(all_states[state_ids[i]]).size() == 1 &&
+				   (std::get<2>(all_states[rec.second[i]])[0]->kind() == ceps::ast::Ast_node_kind::structdef &&
+						    		 ("Dynamic_bitset" == name(as_struct_ref( std::get<2>(all_states[rec.second[i]])[0] ))) )
+
+				  )
+				)
+			 {
+				 indent(os) << "for(int j = 0;j != log4kmw::get_value<0>(state"<<i<<").size();++j){\n";
+				 indent(os) << " auto v = log4kmw::get_value<0>(state"<<i<<").get(j);\n";
+				 indent(os) << " if(!v) continue;\n";
+				 indent(os) << " if (m"<<i<<".find(j) == m"<<i<<".end())continue;\n";
+				 indent(os) << "std::cout << *m"<<i<<"[j] << \";\";\n";
+				 indent(os) << "}\n";
+			 } else {
+
+				 indent(os) << "std::cout << state" <<i << " << \";\" ;\n";
+
+			 }
 			 indent(os) << "std::cout << \" };\\n\";";
 		 }
 		 indent(os) << "std::cout << \"};\\n\";";

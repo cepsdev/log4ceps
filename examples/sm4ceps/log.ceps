@@ -1,0 +1,20 @@
+Statemachine_log_entry{
+ Current_event{ 0 ; };
+ Current_states{ "Stilts_to_extend.Final" ; };
+ Synch_counter{ 0 ; };
+};
+Statemachine_log_entry{
+ Current_event{ 0 ; };
+ Current_states{ "Stilts_to_extend.Final" ;"Z_drive_move.moving" ; };
+ Synch_counter{ 0 ; };
+};
+Statemachine_log_entry{
+ Current_event{ 0 ; };
+ Current_states{ "Stilts_to_extend.Final" ;"Z_drive_move.moving" ;"Z_drive_move.prepare_talin" ; };
+ Synch_counter{ 0 ; };
+};
+Statemachine_log_entry{
+ Current_event{ 0 ; };
+ Current_states{ "Stilts_to_extend.Final" ;"Z_drive_move.moving" ; };
+ Synch_counter{ 0 ; };
+};
