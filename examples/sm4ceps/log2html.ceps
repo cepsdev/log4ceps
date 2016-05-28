@@ -1,6 +1,6 @@
 html{
   body{
-    table{attr{border;1;};
+    table{attr{border{1;};};
     for(logentry:root.Statemachine_log_entry){
       tr{ td{for(e:logentry.Current_states.content().is_string()) {text(" ");text(e);};}; };
     };
