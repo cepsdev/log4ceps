@@ -631,7 +631,7 @@ void write_kmw4log_states_artifacts(
 
 	kmw4log_states_hpp_file_out << "#ifndef LOG4KMW_STATES_HPP_INC\n";
 	kmw4log_states_hpp_file_out << "#define LOG4KMW_STATES_HPP_INC\n\n";
-	kmw4log_states_hpp_file_out << "#include \"log4kmw_state.hpp\"\n#include \"log4kmw_dynamic_bitset.hpp\"\n#include<string>\n#include<thread>\n#include<mutex>\n\n";
+	kmw4log_states_hpp_file_out << "#include \"log4kmw_state.hpp\"\n#include \"log4kmw_dynamic_bitset.hpp\"\n#include<string>\n#include<thread>\n#include<mutex>\n#include<time.h>\n\n";
 	kmw4log_states_hpp_file_out << "namespace log4kmw_states{\n";
 	kmw4log_states_hpp_file_out << " extern std::mutex global_lock;\n";
 
@@ -672,6 +672,8 @@ void write_kmw4log_states_artifacts(
 				val_unit = ceps::ast::unit(ceps::ast::as_int_ref(state_value));
 			} else if(state_value->kind() == ceps::ast::Ast_node_kind::structdef && ("Dynamic_bitset" == name(as_struct_ref(state_value))) ){
 				base_type = "log4kmw::Dynamic_bitset";
+			} else if(state_value->kind() == ceps::ast::Ast_node_kind::structdef && ("Timestamp" == name(as_struct_ref(state_value))) ){
+				base_type = "timespec";
 			} else {
 				std::stringstream ss;
 				ss << *state_value;
@@ -737,9 +739,11 @@ void write_kmw4log_states_artifacts(
 			
 		} //for (auto state_value : state_values)
 
-		kmw4log_states_cpp_file_out << "> log4kmw_states::" << ev.first << "(";
+		kmw4log_states_cpp_file_out << "> log4kmw_states::" << ev.first;
+		if(cpp_initializer.str().length()){ kmw4log_states_cpp_file_out << "(";
 		kmw4log_states_cpp_file_out << cpp_initializer.str();
-		kmw4log_states_cpp_file_out << ");" << std::endl;
+		kmw4log_states_cpp_file_out << ")";}
+		kmw4log_states_cpp_file_out << ";" << std::endl;
 
 
 		kmw4log_states_hpp_file_out << "> " << ev.first << ";" << std::endl;
@@ -780,6 +784,8 @@ void write_kmw4log_states_artifacts(
 				val_unit = ceps::ast::unit(ceps::ast::as_int_ref(state_value));
 			} else if(state_value->kind() == ceps::ast::Ast_node_kind::structdef && ("Dynamic_bitset" == name(as_struct_ref(state_value))) ){
 				base_type = "log4kmw::Dynamic_bitset";
+			} else if(state_value->kind() == ceps::ast::Ast_node_kind::structdef && ("Timestamp" == name(as_struct_ref(state_value))) ){
+				base_type = "timespec";
 			}
 
 			if (val_unit == ceps::ast::all_zero_unit())
@@ -1233,7 +1239,7 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 	gen_cpp_block outer_block(&os,false);
 
 	{
-		indent(os) << "enum base_type{Float,Double,Int,String,Dynamicbitset};\n";
+		indent(os) << "enum base_type{Float,Double,Int,String,Dynamicbitset,Timestamp};\n";
 		indent(os) << "using state_name=std::string;using value_types_with_units=std::vector<base_type,int/*ceps::ast::Unit_rep*/>;" << "\n";
 
 		for(auto& rec: all_records){
@@ -1256,6 +1262,7 @@ namespace log4kmw_test{ namespace meta_info{)" << "\n";
 						 else if (n->kind() == ceps::ast::Ast_node_kind::float_literal){u = ceps::ast::unit(ceps::ast::as_double_ref(n)); os << "base_type::Double";}
 						 else if (n->kind() == ceps::ast::Ast_node_kind::string_literal) os << "base_type::String";
 						 else if (n->kind() == ceps::ast::Ast_node_kind::structdef && ("Dynamic_bitset" == name(as_struct_ref(n))) ) os << "base_type::Dynamicbitset";
+						 else if (n->kind() == ceps::ast::Ast_node_kind::structdef && ("Timestamp" == name(as_struct_ref(n))) ) os << "base_type::Timestamp";
 						 os <<",";
 						 os << "ceps::ast::Unit_rep(";
 						 os << gen_cpp_unit(u);

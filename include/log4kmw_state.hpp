@@ -16,10 +16,13 @@ Description:
 #include "log4kmw_serialization.hpp"
 #include <iostream>
 #include <tuple>
+#include <time.h>
 
 #ifdef _WIN32
  #define __attribute__(A)
 #endif
+
+std::ostream & operator << (std::ostream & os, timespec const &);
 
 namespace log4kmw {
 

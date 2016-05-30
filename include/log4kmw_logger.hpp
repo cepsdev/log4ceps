@@ -244,7 +244,7 @@ namespace log4kmw {
 			  }
 
 
-			  if (file_size != total_size)
+			  if (file_size != (std::int64_t)total_size)
 			    {
 				ftruncate(fd_,total_size);
 				uninitialized_file_ = true;

@@ -3,11 +3,8 @@ Copyright 2015, Krauss-Maffei-Wegmann GmbH & Co. KG.
 All rights reserved.
 
 Description:
-	General events, states and record format.
+	Logging specification for sm4ceps.
 */
-
-val Km = 1000.0*meter;
-val Hour = 3600.0*second;
 
 kind Systemstate;
 kind Event;
@@ -34,17 +31,15 @@ state{
 };
 
 state{
- id{Synch_counter;};
- value{0;};
+ id{Timestamp;};
+ value{Timestamp{REALTIME;};};
 };
 
 
 record{
  id{Statemachine_log_entry;};
- 
- Current_event;
+ Timestamp;
  Current_states;
- Synch_counter;
 };
 
 
