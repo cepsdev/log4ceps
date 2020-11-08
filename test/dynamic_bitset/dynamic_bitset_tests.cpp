@@ -10,21 +10,20 @@
 #include <sstream>
 #include <vector>
 
-#include "log4kmw_serialization.hpp"
-#include "log4kmw_state.hpp"
-#include "log4kmw_record.hpp"
-#include "log4kmw_ringbuffer.hpp"
-#include "log4kmw_logger.hpp"
-#include "log4kmw_dynamic_bitset.hpp"
+#include "log4ceps_serialization.hpp"
+#include "log4ceps_state.hpp"
+#include "log4ceps_record.hpp"
+#include "log4ceps_ringbuffer.hpp"
+#include "log4ceps_logger.hpp"
+#include "log4ceps_dynamic_bitset.hpp"
 #include <assert.h>
 
 int main(int argc, char** argv){
- log4kmw::Dynamic_bitset bitset1(8);
- log4kmw::Dynamic_bitset bitset2(9);
- log4kmw::Dynamic_bitset bitset3(17);
- log4kmw::Dynamic_bitset bitset4(32);
+ log4ceps::Dynamic_bitset bitset1(8);
+ log4ceps::Dynamic_bitset bitset2(9);
+ log4ceps::Dynamic_bitset bitset3(17);
+ log4ceps::Dynamic_bitset bitset4(32);
 
- //std::cout << "bitset1.allocated_memory_size() == " << bitset1.allocated_memory_size()<< std::endl;
  assert(1 == bitset1.allocated_memory_size());
  assert(2 == bitset2.allocated_memory_size());
  assert(3 == bitset3.allocated_memory_size());
@@ -166,13 +165,13 @@ int main(int argc, char** argv){
 
  char buffer1[32] = {};
 
- log4kmw::serialize_value(bitset4,buffer1,32,true ,log4kmw::nothrow_exception_policy());
+ log4ceps::serialize_value(bitset4,buffer1,32,true ,log4ceps::nothrow_exception_policy());
 
  bitset4.clear();
 
  std::cout << "bitset4=" <<bitset4 << std::endl;
 
- log4kmw::deserialize_value(bitset4,buffer1,32);
+ log4ceps::deserialize_value(bitset4,buffer1,32);
 
  std::cout << "bitset4=" <<bitset4 << std::endl;
 
